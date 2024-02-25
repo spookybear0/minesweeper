@@ -181,8 +181,9 @@ class Board:
                         tile.flag()
 
             self.won = True
-            pyglet.text.Label("You won!", font_size=36, x=window.width//2, y=window.height//2, anchor_x="center", anchor_y="center", color=(255, 255, 255, 255)).draw()
-
+            # text with outline
+            pyglet.text.Label("You won!", font_size=36, x=window.width//2, y=window.height//2, anchor_x="center", anchor_y="center", color=(0, 0, 0, 255)).draw()
+            pyglet.text.Label("You won!", font_size=37, x=window.width//2, y=window.height//2, anchor_x="center", anchor_y="center", color=(255, 255, 255, 255)).draw()
 
 board = Board(16, 16)
 
@@ -197,18 +198,23 @@ def on_mouse_press(x, y, button, modifiers):
     global board
 
     tile = board.get_tile_at(x, y)
+
+    flagging = False
+
+    if button == pyglet.window.mouse.RIGHT or (button == pyglet.window.mouse.LEFT and modifiers & pyglet.window.key.MOD_CTRL):
+        flagging = True
         
 
     if board.lost:
         return
 
     tile = board.get_tile_at(x, y)
-    if button == pyglet.window.mouse.LEFT:
+    if not flagging:
         if tile.is_flagged:
             return
 
         if board.first_click:
-            while tile.is_mine:
+            while tile.is_mine or tile.mines_around > 0:
                 board = Board(16, 16)
                 tile = board.get_tile_at(x, y)
             board.first_click = False
@@ -218,7 +224,7 @@ def on_mouse_press(x, y, button, modifiers):
             board.lost = True
         else:
             tile.reveal()
-    elif button == pyglet.window.mouse.RIGHT:
+    elif flagging:
         if not tile.is_revealed:
             if tile.is_flagged:
                 tile.unflag()
@@ -244,9 +250,11 @@ class Bot:
         first_click = True
         self.running = True
         while first_click:
-            tile = random.choice(random.choice(self.board.board))
+            # pick a random tile near the center of the board (not exactly the center, but close) RANDOMLY
+            x, y = random.randint(board.width//2-2, board.width//2+2), random.randint(board.height//2-2, board.height//2+2)
+            tile = board.board[y][x]
 
-            if tile.is_mine:
+            if tile.is_mine or tile.mines_around > 0:
                 continue
             first_click = False
 
@@ -270,7 +278,7 @@ class Bot:
                         return
 
                     if self.board.lost:
-                        self.restart()
+                        #self.restart()
                         return
 
                     non_revealed_tiles = 0
@@ -291,7 +299,7 @@ class Bot:
                                     self.board.lost = True
                                 self.schedule(tile.reveal)
 
-                time.sleep(0.000000001)
+                time.sleep(0.1)
 
     def solve(self):
         self.thread = threading.Thread(target=self.play, daemon=True)
@@ -310,18 +318,21 @@ class Bot:
         self.solve()
 
 bot = Bot(board)
-#bot.solve()
 
 @window.event
 def on_key_press(symbol, modifiers):
     global board
-    if symbol == pyglet.window.key.F2:
+    if symbol == pyglet.window.key.F1:
         def restart():
             global board
             board = Board(16, 16)
+
+            if bot.running:
+                bot.solve()
         pyglet.clock.schedule_once(lambda _: restart(), 0)
 
-    if bot.running:
-        bot.restart()
+    if symbol == pyglet.window.key.F2:
+        if not bot.running:
+            bot.solve()
 
 pyglet.app.run()
